@@ -1,0 +1,15 @@
+:root {
+  --bulma-primary-h: 284deg;
+  --bulma-primary-s: 42%;
+  --bulma-primary-l: 56%;
+  --bulma-body-background-color: #f4eeff;
+}
+.columns {
+  margin-left: -0.75rem; /* Adjust the negative margin to decrease spacing */
+  margin-right: -0.75rem; /* Adjust the negative margin to decrease spacing */
+}
+
+.column {
+  padding-left: 0.75rem; /* Adjust padding to match the negative margin */
+  padding-right: 0.75rem; /* Adjust padding to match the negative margin */
+}

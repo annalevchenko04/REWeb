@@ -1,0 +1,103 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment (venv)
+venv/
+.venv/
+
+# PyCharm project files
+.idea/
+
+# VSCode project files
+.vscode/
+
+# Environment variables
+.env
+*.env
+
+# Logs
+*.log
+*.log.*
+
+# SQLite database (if using SQLite for local development)
+*.sqlite3
+*.db
+
+# SQLAlchemy migration files (optional)
+migrations/
+
+# Test output
+coverage/
+*.cover
+.hypothesis/
+.tox/
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# macOS system files
+.DS_Store
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Compiled C extensions
+*.so
+
+# Packages
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+wheels/
+*.manifest
+.installed.cfg
+*.spec
+
+# Caches
+pip-log.txt
+pip-delete-this-directory.txt
+__pypackages__/
+
+# dotenv
+.env.*
+
+# Security directories (SSL/TLS)
+certs/
+
+# Additional FastAPI or Uvicorn logs
+logs/
+
+# If using Docker, add the following
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+.dockerignore
+
+# If you're using specific dependencies, add them:
+# Node.js (if any frontend code is present)
+node_modules/
+
+# Editor-specific files
+*.swp
+*.swo
+
+# Python package management files
+.Python
+.pyenv
+.pip
+poetry.lock
+Pipfile.lock
+
+# IDE-based cache
+.mypy_cache/
+.pylint.d/
+pytest_cache/
