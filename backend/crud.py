@@ -23,6 +23,13 @@ def get_user(db: Session, username: str):
     return db_user
 
 
+def get_users(db: Session):
+    users = db.query(models.User).all()
+    if not users:
+        return []
+    return users
+
+
 def update_user(db: Session, user_id: int, user_update: schemas.UserCreate):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
 
@@ -109,6 +116,47 @@ def delete_property(db: Session, property_id: int):
     db.delete(db_property)
     db.commit()
     return True
+
+
+def search_properties(
+        db: Session,
+        location: str | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        property_type: str | None = None,
+        bedrooms: int | None = None,
+        bathrooms: int | None = None
+):
+    query = db.query(models.Property)
+
+    if location:
+        query = query.filter(models.Property.location.ilike(f"%{location}%"))
+    if min_price:
+        query = query.filter(models.Property.price >= min_price)
+    if max_price:
+        query = query.filter(models.Property.price <= max_price)
+    if property_type:
+        query = query.filter(models.Property.property_type == property_type)
+    if bedrooms is not None:
+        query = query.filter(models.Property.bedrooms >= bedrooms)
+    if bathrooms is not None:
+        query = query.filter(models.Property.bathrooms >= bathrooms)
+
+    return query.all()
+
+
+def filter_properties(db: Session, sort_by: str):
+    query = db.query(models.Property)
+
+    if sort_by == "newest":
+        query = query.order_by(models.Property.created_at.desc())
+    elif sort_by == "price_asc":
+        query = query.order_by(models.Property.price.asc())
+    elif sort_by == "price_desc":
+        query = query.order_by(models.Property.price.desc())
+
+    return query.all()
+
 
 # --- Image CRUD operations ---
 

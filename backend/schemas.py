@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 
 
-# Existing User schemas
+# User creation model (used for creating a user)
 
 class UserCreate(BaseModel):
     username: str
@@ -12,7 +12,7 @@ class UserCreate(BaseModel):
     surname: str
     role: str
 
-
+# User response model (used for reading user data)
 class User(BaseModel):
     id: int
     username: str
@@ -23,8 +23,6 @@ class User(BaseModel):
     class Config:
         from_attributes = True
 
-
-# New Property schemas
 
 # Property creation model (used for creating a property)
 class PropertyCreate(BaseModel):
@@ -56,9 +54,6 @@ class Property(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# New Image schemas
 
 # Image creation model (used for uploading an image)
 class ImageCreate(BaseModel):

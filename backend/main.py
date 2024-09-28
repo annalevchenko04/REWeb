@@ -78,7 +78,7 @@ def authenticate_user(username: str, password: str, db: db_dependency):
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta if expires_delta else timedelta(minutes=15))
+    expire = datetime.now(timezone.utc) + (expires_delta if expires_delta else timedelta(minutes=30))
     to_encode.update({'exp': expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -111,7 +111,7 @@ def verify_token(token: str = Depends(oauth2_scheme)):
 
 
 # User Token Verification Endpoint
-@app.get("/verify-token/{token}")
+@app.get("/verification-token/{token}")
 async def verify_user_token(token: str):
     verify_token(token=token)
     return {"message": "Token is valid"}
@@ -145,11 +145,15 @@ async def delete_user(user_id: int, db: db_dependency):
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deleted successfully"}
 
+@app.get("/users", response_model=List[schemas.User])
+async def list_users(db: db_dependency):
+    users = crud.get_users(db=db)
+    return users
 
 # --- Property Endpoints ---
 
 # Create a property (for agents)
-@app.post("/properties", response_model=schemas.Property)
+@app.post("/users/{user_id}/property", response_model=schemas.Property)
 async def create_property(property: schemas.PropertyCreate, db: db_dependency, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
     db_user = crud.get_user(db=db, username=payload.get("sub"))
@@ -161,7 +165,7 @@ async def create_property(property: schemas.PropertyCreate, db: db_dependency, t
 
 
 # Read a single property by ID
-@app.get("/properties/{property_id}", response_model=schemas.Property)
+@app.get("/property/{property_id}", response_model=schemas.Property)
 async def read_property(property_id: int, db: db_dependency):
     db_property = crud.get_property(db=db, property_id=property_id)
     if db_property is None:
@@ -171,12 +175,12 @@ async def read_property(property_id: int, db: db_dependency):
 
 # Get all properties (for buyers)
 @app.get("/properties", response_model=List[schemas.Property])
-async def get_properties(skip: int = 0, limit: int = 10, db: db_dependency = Annotated[Session, Depends(get_db)]):
+async def list_properties(skip: int = 0, limit: int = 10, db: db_dependency = Annotated[Session, Depends(get_db)]):
     return crud.get_all_properties(db=db, skip=skip, limit=limit)
 
 
 # Update a property (only for agents who own the property)
-@app.put("/properties/{property_id}", response_model=schemas.Property)
+@app.put("/users/{user_id}/property/{property_id}", response_model=schemas.Property)
 async def update_property(property_id: int, property: schemas.PropertyCreate, db: db_dependency,
                           token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -193,7 +197,7 @@ async def update_property(property_id: int, property: schemas.PropertyCreate, db
 
 
 # Delete a property (only for agents who own the property)
-@app.delete("/properties/{property_id}", response_model=dict)
+@app.delete("/users/{user_id}/property/{property_id}", response_model=dict)
 async def delete_property(property_id: int, db: db_dependency, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
     db_user = crud.get_user(db=db, username=payload.get("sub"))
@@ -209,10 +213,39 @@ async def delete_property(property_id: int, db: db_dependency, token: str = Depe
     return {"message": "Property deleted successfully"}
 
 
+@app.get("/properties/search", response_model=List[schemas.Property])
+async def search_properties(
+    location: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    property_type: str | None = None,
+    bedrooms: int | None = None,
+    bathrooms: int | None = None,
+    db: Session = Depends(get_db)
+):
+    return crud.search_properties(
+        db=db,
+        location=location,
+        min_price=min_price,
+        max_price=max_price,
+        property_type=property_type,
+        bedrooms=bedrooms,
+        bathrooms=bathrooms
+    )
+
+@app.get("/properties/filter", response_model=List[schemas.Property])
+async def filter_properties(
+    sort_by: str | None = "newest",
+    db: Session = Depends(get_db)
+):
+    return crud.filter_properties(db=db, sort_by=sort_by)
+
+
+
 # --- Image Endpoints ---
 
 # Upload an image for a property (only for agents who own the property)
-@app.post("/properties/{property_id}/images", response_model=schemas.Image)
+@app.post("/users/{user_id}/property/{property_id}/image", response_model=schemas.Image)
 async def upload_image(property_id: int, image: schemas.ImageCreate, db: db_dependency,
                        token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -227,10 +260,17 @@ async def upload_image(property_id: int, image: schemas.ImageCreate, db: db_depe
 
     return crud.create_image(db=db, image=image, property_id=property_id)
 
+@app.get("/property/{property_id}/image/{image_id}", response_model=schemas.Image)
+async def read_image(image_id: int, db: db_dependency):
+    db_image = crud.get_image(db=db, image_id=image_id)
+    if db_image is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return db_image
+
 
 # Get all images for a property
-@app.get("/properties/{property_id}/images", response_model=List[schemas.Image])
-async def get_images_for_property(property_id: int, db: db_dependency):
+@app.get("/property/{property_id}/images", response_model=List[schemas.Image])
+async def list_images_for_property(property_id: int, db: db_dependency):
     db_property = crud.get_property(db=db, property_id=property_id)
     if db_property is None:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -239,7 +279,7 @@ async def get_images_for_property(property_id: int, db: db_dependency):
 
 
 # Delete an image by ID (only for agents who own the property)
-@app.delete("/images/{image_id}", response_model=dict)
+@app.delete("/users/{user_id}/property/{property_id}/image/{image_id}", response_model=dict)
 async def delete_image(image_id: int, db: db_dependency, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
     db_user = crud.get_user(db=db, username=payload.get("sub"))
@@ -255,6 +295,21 @@ async def delete_image(image_id: int, db: db_dependency, token: str = Depends(oa
     crud.delete_image(db=db, image_id=image_id)
     return {"message": "Image deleted successfully"}
 
+@app.put("/users/{user_id}/property/{property_id}/image/{image_id}", response_model=schemas.Image)
+async def update_image(image_id: int, image_update: schemas.ImageCreate, db: db_dependency,
+                       token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    db_image = crud.get_image(db=db, image_id=image_id)
+    if db_image is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    db_property = crud.get_property(db=db, property_id=db_image.property_id)
+    if db_user is None or db_property.agent_id != db_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this image")
+
+    return crud.update_image(db=db, image_id=image_id, image_update=image_update)
 
 @app.get("/api")
 async def root():
