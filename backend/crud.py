@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from passlib.context import CryptContext
+from fastapi import HTTPException
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -21,6 +22,16 @@ def create_user(db: Session, user: schemas.UserCreate):
 def get_user(db: Session, username: str):
     db_user = db.query(models.User).filter(models.User.username == username).first()
     return db_user
+
+
+def get_properties_by_user(db: Session, username: str):
+    # Fetch the user based on the username
+    user = get_user(db, username=username)
+    if not user:
+        return []  # Handle user not found scenario
+
+    # Query properties owned by the agent
+    return db.query(models.Property).filter(models.Property.agent_id == user.id).all()
 
 
 def get_users(db: Session):
@@ -127,35 +138,16 @@ def search_properties(
         bedrooms: int | None = None,
         bathrooms: int | None = None
 ):
-    query = db.query(models.Property)
 
-    if location:
-        query = query.filter(models.Property.location.ilike(f"%{location}%"))
-    if min_price:
-        query = query.filter(models.Property.price >= min_price)
-    if max_price:
-        query = query.filter(models.Property.price <= max_price)
-    if property_type:
-        query = query.filter(models.Property.property_type == property_type)
-    if bedrooms is not None:
-        query = query.filter(models.Property.bedrooms >= bedrooms)
-    if bathrooms is not None:
-        query = query.filter(models.Property.bathrooms >= bathrooms)
-
-    return query.all()
-
-
-def filter_properties(db: Session, sort_by: str):
-    query = db.query(models.Property)
-
-    if sort_by == "newest":
-        query = query.order_by(models.Property.created_at.desc())
-    elif sort_by == "price_asc":
-        query = query.order_by(models.Property.price.asc())
-    elif sort_by == "price_desc":
-        query = query.order_by(models.Property.price.desc())
-
-    return query.all()
+    return db.query(models.Property).filter(
+        # Only add filters for non-None values
+        models.Property.location.ilike(f"%{location}%") if location else True,
+        models.Property.price >= min_price if min_price is not None else True,
+        models.Property.price <= max_price if max_price is not None else True,
+        models.Property.property_type == property_type if property_type else True,  # Use Enum
+        models.Property.bedrooms >= bedrooms if bedrooms is not None else True,
+        models.Property.bathrooms >= bathrooms if bathrooms is not None else True
+    ).all()
 
 
 # --- Image CRUD operations ---
@@ -188,22 +180,6 @@ def get_images_by_property(db: Session, property_id: int):
     return db.query(models.Image).filter(models.Image.property_id == property_id).all()
 
 
-def update_image(db: Session, image_id: int, image_update: schemas.ImageCreate):
-    """
-    Update the URL of an existing image.
-    """
-    db_image = db.query(models.Image).filter(models.Image.id == image_id).first()
-
-    if not db_image:
-        return None
-
-    db_image.url = image_update.url
-
-    db.commit()
-    db.refresh(db_image)
-    return db_image
-
-
 def delete_image(db: Session, image_id: int):
     """
     Delete an image by its ID.
@@ -216,3 +192,22 @@ def delete_image(db: Session, image_id: int):
     db.delete(db_image)
     db.commit()
     return True
+
+
+def add_favorite(db: Session, user_id: int, property_id: int):
+    favorite = models.Favorite(user_id=user_id, property_id=property_id)
+    db.add(favorite)
+    db.commit()
+    db.refresh(favorite)
+    return favorite
+
+def remove_favorite(db: Session, user_id: int, property_id: int):
+    favorite = db.query(models.Favorite).filter_by(user_id=user_id, property_id=property_id).first()
+    if favorite:
+        db.delete(favorite)
+        db.commit()
+        return True
+    raise HTTPException(status_code=404, detail="Favorite not found")
+
+def get_favorites(db: Session, user_id: int):
+    return db.query(models.Property).join(models.Favorite).filter(models.Favorite.user_id == user_id).all()

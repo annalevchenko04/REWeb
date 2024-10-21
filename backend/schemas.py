@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -11,6 +11,13 @@ class UserCreate(BaseModel):
     name: str
     surname: str
     role: str
+
+    # Validator to check if username contains '@'
+    @validator('username')
+    def validate_username(cls, v):
+        if '@' not in v:
+            raise ValueError("Username must contain an '@' symbol.")
+        return v
 
 # User response model (used for reading user data)
 class User(BaseModel):
@@ -57,6 +64,7 @@ class Property(BaseModel):
 
 # Image creation model (used for uploading an image)
 class ImageCreate(BaseModel):
+    filename: str  # Original filename
     url: str
 
 
@@ -69,7 +77,16 @@ class Image(BaseModel):
     class Config:
         from_attributes = True
 
-
 # To avoid circular imports, declare Property's images field after Image schema
 Property.update_forward_refs()
+
+class Favorite(BaseModel):
+    id: int  # Unique identifier for the favorite entry
+    user_id: int  # The ID of the user who favorited the property
+    property_id: int  # The ID of the favorited property
+
+    class Config:
+        orm_mode = True
+
+
 

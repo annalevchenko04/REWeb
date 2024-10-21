@@ -13,3 +13,42 @@
   padding-left: 0.75rem; /* Adjust padding to match the negative margin */
   padding-right: 0.75rem; /* Adjust padding to match the negative margin */
 }
+.table-container {
+    max-width: 100%; /* Ensure it fits within the container */
+    overflow-x: auto; /* Allow horizontal scrolling */
+    max-height: 500px; /* Set a maximum height */
+    overflow-y: auto;  /* Enable vertical scrolling */
+    border: 1px solid #ddd; /* Optional: Add a border */
+}
+
+
+.table td, .table th {
+    word-wrap: break-word; /* Break long words */
+    white-space: normal; /* Allow text to wrap */
+}
+
+.table img {
+    max-width: 100%; /* Ensure images don't overflow the cell */
+    height: auto; /* Maintain aspect ratio */
+}
+
+.logo {
+    width: 100%;
+    max-width: 200px; /* You can adjust this */
+    height: auto;
+    object-fit: cover; /* Use this to cover the container */
+    margin: 10px;
+}
+
+.logo-container {
+    display: flex;
+    flex-direction: column; /* Aligns logos vertically */
+    align-items: center; /* Center the logos */
+    width: 100%; /* Full width to allow images to be responsive */
+    overflow: visible; /* Make sure overflow is visible */
+}
+@media (max-width: 768px) {
+  .logo {
+    max-width: 150px; /* Adjust max width for smaller screens */
+  }
+}

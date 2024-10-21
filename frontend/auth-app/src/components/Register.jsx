@@ -61,6 +61,11 @@ const Register = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    // Validate username contains an '@'
+    if (!Username.includes('@')) {
+        setErrorMessage("Email must contain an '@' symbol.");
+        return;
+    }
     if (password === confirmationPassword && password.length > 5) {
       submitRegistration();
     } else {
@@ -102,7 +107,7 @@ const Register = () => {
               </div>
 
               <div className="field">
-                  <label className="label">Username</label>
+                  <label className="label">Email</label>
                   <div className="control">
                       <input
                           type="text"
@@ -127,7 +132,7 @@ const Register = () => {
                                   checked={Role === "user"}
                                   onChange={(e) => setRole(e.target.value)}
                               />{" "}
-                              buyer
+                              user
                           </label>
                       </div>
 
@@ -136,11 +141,11 @@ const Register = () => {
                               <input
                                   type="radio"
                                   name="role"
-                                  value="realestate"
-                                  checked={Role === "realestate"}
+                                  value="agent"
+                                  checked={Role === "agent"}
                                   onChange={(e) => setRole(e.target.value)}
                               />{" "}
-                              real estate agent
+                              agent
                           </label>
                       </div>
                   </div>
