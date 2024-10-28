@@ -166,13 +166,14 @@ def create_image(db: Session, image: schemas.ImageCreate, property_id: int):
     return db_image
 
 
-def get_image(db: Session, image_id: int):
+def get_image(db: Session, property_id: int, image_id: int):
     """
-    Retrieve a single image by its ID.
+    Retrieve a single image by its ID and associated property_id.
     """
-    return db.query(models.Image).filter(models.Image.id == image_id).first()
-
-
+    return db.query(models.Image).filter(
+        models.Image.id == image_id,
+        models.Image.property_id == property_id
+    ).first()
 def get_images_by_property(db: Session, property_id: int):
     """
     Retrieve all images associated with a specific property.

@@ -8,7 +8,7 @@ const PropertyDetails = () => {
     const [errorMessage, setErrorMessage] = useState("");
     const [property, setProperty] = useState({});
     const [isFavorited, setIsFavorited] = useState(false);
-    let [userId, setUserId] = useState(null);
+    let   [userId, setUserId] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false); // Track modal visibility
     const [isLoading, setIsLoading] = useState(true);
     const [selectedImageIndex, setSelectedImageIndex] = useState(null); // Track selected image index
@@ -116,7 +116,7 @@ const PropertyDetails = () => {
         };
 
         try {
-            const response = await fetch(`http://localhost:8000/users/${userId}/${property_id}/favorites`, requestOptions);
+            const response = await fetch(`http://localhost:8000/users/${userId}/property/${property_id}/favorites`, requestOptions);
             if (!response.ok) throw new Error("Could not update favorites");
             setIsFavorited(!isFavorited);
         } catch (error) {

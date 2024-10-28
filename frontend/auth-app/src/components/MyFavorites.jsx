@@ -90,7 +90,7 @@ const deleteFavorite = async (propertyId) => {
     };
 
     try {
-        const response = await fetch(`http://localhost:8000/users/${userId}/${propertyId}/favorites`, requestOptions);
+        const response = await fetch(`http://localhost:8000/users/${userId}/property/${propertyId}/favorites`, requestOptions);
         if (!response.ok) {
             setErrorMessage("Failed to delete favorite property.");
             return;
@@ -135,7 +135,7 @@ const deleteFavorite = async (propertyId) => {
                 <div className="columns is-multiline">
                     {favorites.map((property) => (
                         <div className="column is-one-third" key={property.id}>
-                            <div className="box" style={{
+                            <div className="box favorite-card" style={{
                                 position: 'relative',
                                 height: '400px',
                                 display: 'flex',

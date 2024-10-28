@@ -1,6 +1,8 @@
 import os
+import base64
 import shutil
-from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form
+from fastapi import Body
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -9,8 +11,7 @@ from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, List
 from fastapi.staticfiles import StaticFiles
-from fastapi import Body
-import base64
+
 
 # Importing necessary modules
 import crud
@@ -187,13 +188,21 @@ async def get_user_info(
 
 # Create a property (for agents)
 @app.post("/users/{user_id}/property", response_model=schemas.Property)
-async def create_property(property: schemas.PropertyCreate, db: db_dependency, token: str = Depends(oauth2_scheme)):
+async def create_property(
+    user_id: int,
+    property: schemas.PropertyCreate,
+    db: db_dependency,
+    token: str = Depends(oauth2_scheme)
+):
+    # Decode token and get user data
     payload = verify_token(token)
     db_user = crud.get_user(db=db, username=payload.get("sub"))
 
-    if db_user is None or db_user.role != "agent":
-        raise HTTPException(status_code=403, detail="Only agents can create property listings")
+    # Ensure the user exists, is an agent, and matches the user_id in the path
+    if db_user is None or db_user.role != "agent" or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized or incorrect user ID")
 
+    # Create the property with the agent's ID
     return crud.create_property(db=db, property=property, agent_id=db_user.id)
 
 
@@ -215,53 +224,87 @@ async def list_properties(skip: int = 0, limit: int = 10, db: db_dependency = An
 # Get all properties (for single user(agent))
 @app.get("/users/{user_id}/myproperties", response_model=List[schemas.Property])
 async def list_user_properties(
-        db: Session = Depends(get_db),
-        token: str = Depends(oauth2_scheme)
+    user_id: int,  # user_id parameter from the URL (if you still want to keep this for some reason)
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
 ):
     # Verify the token to extract user information
     payload = verify_token(token)
-    username = payload.get("sub")  # Extract the username or user ID from the token
+    username = payload.get("sub")  # Extract the username from the token
+
+    # Fetch the user based on the username
+    user = crud.get_user(db, username=username)  # Fetch user by username
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Optionally check if the user_id matches the fetched user's ID
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="User ID in the URL does not match the authenticated user")
 
     # Fetch properties for the authenticated user
-    properties = crud.get_properties_by_user(db=db, username=username)
+    properties = crud.get_properties_by_user(db=db, username=username)  # Use username to fetch properties
+    if not properties:
+        raise HTTPException(status_code=404, detail="No properties found for this user")
 
     return properties
 
 
+
 # Update a property (only for agents who own the property)
 @app.put("/users/{user_id}/property/{property_id}", response_model=schemas.Property)
-async def update_property(property_id: int, property: schemas.PropertyCreate, db: db_dependency,
+async def update_property(user_id: int, property_id: int, property: schemas.PropertyCreate, db: db_dependency,
                           token: str = Depends(oauth2_scheme)):
+    # Verify token and get user info
     payload = verify_token(token)
     db_user = crud.get_user(db=db, username=payload.get("sub"))
 
-    db_property = crud.get_property(db=db, property_id=property_id)
-    if db_property is None:
-        raise HTTPException(status_code=404, detail="Property not found")
-
-    if db_user is None or (db_user.role != "admin" and db_property.agent_id != db_user.id):
+    # Verify user authorization
+    if db_user is None or db_user.id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to update this property")
 
-    return crud.update_property(db=db, property_id=property_id, property_update=property)
-
-
-# Delete a property (only for agents who own the property)
-@app.delete("/users/{user_id}/property/{property_id}", response_model=dict)
-async def delete_property(property_id: int, db: db_dependency, token: str = Depends(oauth2_scheme)):
-    payload = verify_token(token)
-    db_user = crud.get_user(db=db, username=payload.get("sub"))
-
+    # Check if the property exists
     db_property = crud.get_property(db=db, property_id=property_id)
     if db_property is None:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    if db_user is None or (db_user.role != "admin" and db_property.agent_id != db_user.id):
+    # Ensure the user is authorized to update the specific property (admins or owners only)
+    if db_user.role != "admin" and db_property.agent_id != db_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this property")
+
+    # Update the property
+    return crud.update_property(db=db, property_id=property_id, property_update=property)
+
+@app.delete("/users/{user_id}/property/{property_id}", response_model=dict)
+async def delete_property(
+    user_id: int,
+    property_id: int,
+    db: db_dependency,
+    token: str = Depends(oauth2_scheme)
+):
+    # Decode the token to get user information
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    # Ensure the authenticated user matches the user_id in the path
+    if db_user is None or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Incorrect user ID")
+
+    # Retrieve the property to check ownership
+    db_property = crud.get_property(db=db, property_id=property_id)
+    if db_property is None:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    # Authorization: Only the property owner or an admin can delete the property
+    if db_user.role != "admin" and db_property.agent_id != db_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this property")
 
+    # Delete the property
     crud.delete_property(db=db, property_id=property_id)
     return {"message": "Property deleted successfully"}
 
-
+#all the search parameters are defined as optional parameters (| None = None)
+#If a user includes a parameter in the request URL , that parameter’s value is passed into the function.
+#If a user leaves a parameter out, it defaults to None, meaning that the function will know it wasn’t provided and should ignore it.
 @app.get("/properties/search",
          response_model=List[schemas.Property])
 async def search_properties(
@@ -286,48 +329,94 @@ async def search_properties(
 # --- Image Endpoints ---
 
 # Upload an image for a property (only for agents who own the property)
+# @app.post("/users/{user_id}/property/{property_id}/image", response_model=schemas.Image)
+# async def upload_image(
+#     user_id: int,
+#     property_id: int,
+#     image_data: str = Body(..., embed=True),  # Change to receive base64 data
+#     db: Session = Depends(get_db),
+#     token: str = Depends(oauth2_scheme)
+# ):
+#     payload = verify_token(token)
+#     db_user = crud.get_user(db=db, username=payload.get("sub"))
+#
+#     db_property = crud.get_property(db=db, property_id=property_id)
+#     if db_property is None:
+#         raise HTTPException(status_code=404, detail="Property not found")
+#
+#     if db_user is None or db_property.agent_id != db_user.id:
+#         raise HTTPException(status_code=403, detail="Not authorized to upload images for this property")
+#
+#     # Extract filename and file extension from base64 string
+#     # Assuming image_data format: "data:image/png;base64,..."
+#     header, encoded = image_data.split(",", 1)
+#     file_extension = header.split(";")[0].split("/")[1]  # Get file type (e.g., 'png', 'jpeg')
+#
+#     # Generate a unique filename to save the image
+#     new_filename = f"{property_id}_{datetime.now().timestamp()}.{file_extension}"
+#     image_path = os.path.join("images", new_filename)
+#
+#     # Decode the base64 string and save the image
+#     with open(image_path, "wb") as image_file:
+#         image_file.write(base64.b64decode(encoded))
+#
+#     # Create the image entry in the database
+#     image_data = schemas.ImageCreate(filename=new_filename, url=image_path)
+#     return crud.create_image(db=db, image=image_data, property_id=property_id)
+
+
 @app.post("/users/{user_id}/property/{property_id}/image", response_model=schemas.Image)
 async def upload_image(
     user_id: int,
     property_id: int,
-    image_data: str = Body(..., embed=True),  # Change to receive base64 data
+    image_file: UploadFile = File(None),  # Allow file or base64
+    image_data: str = Form(None),         # Allow base64 data as an alternative
     db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)
 ):
     payload = verify_token(token)
     db_user = crud.get_user(db=db, username=payload.get("sub"))
 
-    db_property = crud.get_property(db=db, property_id=property_id)
-    if db_property is None:
-        raise HTTPException(status_code=404, detail="Property not found")
+    # Ensure authenticated user matches user_id
+    if db_user is None or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to upload images for this user")
 
-    if db_user is None or db_property.agent_id != db_user.id:
+    # Verify that property exists and user is authorized
+    db_property = crud.get_property(db=db, property_id=property_id)
+    if db_property is None or db_property.agent_id != db_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to upload images for this property")
 
-    # Extract filename and file extension from base64 string
-    # Assuming image_data format: "data:image/png;base64,..."
-    header, encoded = image_data.split(",", 1)
-    file_extension = header.split(";")[0].split("/")[1]  # Get file type (e.g., 'png', 'jpeg')
+    # Determine if image data is uploaded as a file or base64 string
+    if image_file:
+        # Handle file upload
+        file_extension = image_file.filename.split(".")[-1]
+        new_filename = f"{property_id}_{datetime.now().timestamp()}.{file_extension}"
+        image_path = os.path.join("images", new_filename)
+        with open(image_path, "wb") as file_io:
+            content = await image_file.read()
+            file_io.write(content)
+    elif image_data:
+        # Decode base64 and save
+        file_extension = "png"  # Adjust extension as needed
+        new_filename = f"{property_id}_{datetime.now().timestamp()}.{file_extension}"
+        image_path = os.path.join("images", new_filename)
+        with open(image_path, "wb") as file_io:
+            image_bytes = base64.b64decode(image_data.split(",")[1])  # Ignore base64 header
+            file_io.write(image_bytes)
+    else:
+        raise HTTPException(status_code=400, detail="No image data provided")
 
-    # Generate a unique filename to save the image
-    new_filename = f"{property_id}_{datetime.now().timestamp()}.{file_extension}"
-    image_path = os.path.join("images", new_filename)
-
-    # Decode the base64 string and save the image
-    with open(image_path, "wb") as image_file:
-        image_file.write(base64.b64decode(encoded))
-
-    # Create the image entry in the database
+    # Record the image in the database
     image_data = schemas.ImageCreate(filename=new_filename, url=image_path)
     return crud.create_image(db=db, image=image_data, property_id=property_id)
 
 
 @app.get("/property/{property_id}/image/{image_id}", response_model=schemas.Image)
-async def read_image(image_id: int, db: db_dependency):
-    db_image = crud.get_image(db=db, image_id=image_id)
+async def read_image(property_id: int, image_id: int, db: db_dependency):
+    db_image = crud.get_image(db=db, property_id=property_id, image_id=image_id)
     if db_image is None:
-        raise HTTPException(status_code=404, detail="Image not found")
-    return db_image
+        raise HTTPException(status_code=404, detail="Image not found or does not belong to this property")
+    return db_image  # Includes property_id in the response due to the Pydantic schema
 
 
 # Get all images for a property
@@ -348,36 +437,84 @@ async def list_images_for_property(property_id: int, db: db_dependency):
 
 # Delete an image by ID (only for agents who own the property)
 @app.delete("/users/{user_id}/property/{property_id}/image/{image_id}", response_model=dict)
-async def delete_image(image_id: int, db: db_dependency, token: str = Depends(oauth2_scheme)):
+async def delete_image(user_id: int, property_id: int, image_id: int, db: db_dependency, token: str = Depends(oauth2_scheme)):
+    # Verify token and retrieve user information
     payload = verify_token(token)
     db_user = crud.get_user(db=db, username=payload.get("sub"))
 
-    db_image = crud.get_image(db=db, image_id=image_id)
-    if db_image is None:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    db_property = crud.get_property(db=db, property_id=db_image.property_id)
-    if db_user is None or db_property.agent_id != db_user.id:
+    # Check if the user is authorized
+    if db_user is None or db_user.id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this image")
 
+    # Retrieve the image by both image_id and property_id
+    db_image = crud.get_image(db=db, property_id=property_id, image_id=image_id)
+    if db_image is None:
+        raise HTTPException(status_code=404, detail="Image not found or does not belong to the specified property")
+
+    # Retrieve the property associated with this image
+    db_property = crud.get_property(db=db, property_id=property_id)
+    if db_property is None or db_property.agent_id != db_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this image")
+
+    # Perform the delete operation
     crud.delete_image(db=db, image_id=image_id)
     return {"message": "Image deleted successfully"}
 
 
-@app.post("/users/{user_id}/{property_id}/favorites", response_model=schemas.Favorite)
-async def add_favorite(user_id: int, property_id: int, db: db_dependency = Annotated[Session, Depends(get_db)]):
+@app.post("/users/{user_id}/property/{property_id}/favorites", response_model=schemas.Favorite)
+async def add_favorite(
+    user_id: int,
+    property_id: int,
+    db: db_dependency = Annotated[Session, Depends(get_db)],
+    token: str = Depends(oauth2_scheme)
+):
+    # Verify token and get user information
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    # Ensure the user ID from token matches the user_id in the path
+    if db_user is None or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Incorrect user ID")
+
+    # Add the property to favorites
     return crud.add_favorite(db, user_id, property_id)
 
 
 # Remove a favorite property
-@app.delete("/users/{user_id}/{property_id}/favorites")
-async def remove_favorite(user_id: int, property_id: int, db: db_dependency = Annotated[Session, Depends(get_db)]):
+@app.delete("/users/{user_id}/property/{property_id}/favorites")
+async def remove_favorite(
+    user_id: int,
+    property_id: int,
+    db: db_dependency = Annotated[Session, Depends(get_db)],
+    token: str = Depends(oauth2_scheme)
+):
+    # Verify token and get user information
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    # Ensure the user ID from token matches the user_id in the path
+    if db_user is None or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Incorrect user ID")
+
+    # Remove the property from favorites
     crud.remove_favorite(db, user_id, property_id)
     return {"message": "Favorite removed successfully"}
 
-
 # Get all favorite properties for a user
 @app.get("/users/{user_id}/favorites", response_model=List[schemas.Property])
-async def get_favorites(user_id: int, db: db_dependency = Annotated[Session, Depends(get_db)]):
+async def get_favorites(
+    user_id: int,
+    db: db_dependency = Annotated[Session, Depends(get_db)],
+    token: str = Depends(oauth2_scheme)
+):
+    # Verify token and get user information
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    # Ensure the user ID from token matches the user_id in the path
+    if db_user is None or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Incorrect user ID")
+
+    # Retrieve all favorite properties for the user
     return crud.get_favorites(db, user_id)
 

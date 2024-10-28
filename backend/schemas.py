@@ -19,6 +19,15 @@ class UserCreate(BaseModel):
             raise ValueError("Username must contain an '@' symbol.")
         return v
 
+        # Validator to check allowed values and convert role to lowercase
+    @validator('role')
+    def validate_role(cls, v):
+        v = v.lower()  # Convert role to lowercase
+        allowed_roles = {'user', 'agent', 'admin'}
+        if v not in allowed_roles:
+              raise ValueError(f"Role must be one of {allowed_roles}.")
+        return v
+
 # User response model (used for reading user data)
 class User(BaseModel):
     id: int
@@ -73,6 +82,8 @@ class Image(BaseModel):
     id: int
     url: str
     upload_date: datetime
+    property_id: int
+
 
     class Config:
         from_attributes = True

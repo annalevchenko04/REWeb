@@ -104,41 +104,41 @@ const handleRemoveExistingImage = async (imageId) => {
 
 
   // Function to upload multiple images to the server
-  const uploadImages = async (files, userId, propertyId) => {
-    const uploadPromises = files.map(file => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
+ const uploadImages = async (files, userId, propertyId) => {
+  const uploadPromises = files.map(file => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
 
-        reader.onloadend = async () => {
-          const base64data = reader.result; // This is the base64 string
-          try {
-            const response = await fetch(`http://localhost:8000/users/${userId}/property/${propertyId}/image`, {
-              method: 'POST',
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: "Bearer " + token,
-              },
-              body: JSON.stringify({ image_data: base64data }), // Send the base64 string
-            });
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const imageResponse = await response.json();
-            console.log('Image uploaded successfully:', imageResponse);
-            resolve(imageResponse); // Resolve the promise with the image response
-          } catch (error) {
-            console.error('Error uploading image:', error);
-            reject(error); // Reject the promise on error
+      reader.onloadend = async () => {
+        const base64data = reader.result;  // Base64 data
+        try {
+          const formData = new FormData();
+          formData.append("image_data", base64data);  // Send base64 as form data
+
+          const response = await fetch(`http://localhost:8000/users/${userId}/property/${propertyId}/image`, {
+            method: 'POST',
+            headers: {
+              Authorization: "Bearer " + token,
+            },
+            body: formData,  // Use FormData for the request body
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
-        };
+          const imageResponse = await response.json();
+          resolve(imageResponse);
+        } catch (error) {
+          reject(error);
+        }
+      };
 
-        reader.readAsDataURL(file); // Read the file as a base64 encoded string
-      });
+      reader.readAsDataURL(file);
     });
+  });
 
-    // Wait for all the images to be uploaded
-    return Promise.all(uploadPromises);
-  };
+  return Promise.all(uploadPromises);
+};
 
   const handleCreateProperty = async (e) => {
     e.preventDefault();

@@ -52,3 +52,11 @@
     max-width: 150px; /* Adjust max width for smaller screens */
   }
 }
+.favorite-card {
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.favorite-card:hover {
+    transform: scale(1.05); /* Slightly scale up on hover */
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2); /* Add a shadow effect */
+}

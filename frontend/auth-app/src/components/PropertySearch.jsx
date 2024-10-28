@@ -237,7 +237,7 @@ const PropertySearch = () => {
                         <div className="columns is-multiline">
                             {properties.map((property) => (
                                 <div className="column is-one-third" key={property.id}>
-                                    <div className="box" style={{
+                                    <div className="box favorite-card" style={{
                                     position: 'relative',
                                     height: '400px',
                                     display: 'flex',
