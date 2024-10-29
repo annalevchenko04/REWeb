@@ -243,9 +243,6 @@ async def list_user_properties(
 
     # Fetch properties for the authenticated user
     properties = crud.get_properties_by_user(db=db, username=username)  # Use username to fetch properties
-    if not properties:
-        raise HTTPException(status_code=404, detail="No properties found for this user")
-
     return properties
 
 

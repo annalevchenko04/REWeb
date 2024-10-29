@@ -9,6 +9,7 @@ const PropertyDetails = () => {
     const [property, setProperty] = useState({});
     const [isFavorited, setIsFavorited] = useState(false);
     let   [userId, setUserId] = useState(null);
+    const [user, setUser] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false); // Track modal visibility
     const [isLoading, setIsLoading] = useState(true);
     const [selectedImageIndex, setSelectedImageIndex] = useState(null); // Track selected image index
@@ -101,6 +102,7 @@ const PropertyDetails = () => {
             const response = await fetch(`http://localhost:8000/user/myinfo`, requestOptions);
             const data = await response.json();
             setUserId(data.id);
+            setUser(data);
         } catch (error) {
             setErrorMessage("An error occurred while trying to fetch user information.");
         }
@@ -195,6 +197,7 @@ const formatDate = (dateString) => {
             ) :  property ? (
                 <div className="box">
                     <div style={{textAlign: "right"}}>
+                        {user && user.role !== 'admin' && (
                         <button
                             onClick={toggleFavorite}
                             style={{
@@ -208,6 +211,7 @@ const formatDate = (dateString) => {
                                    style={{color: isFavorited ? "red" : "gray"}}></i>
                             </span>
                         </button>
+                        )}
                     </div>
                     <h1 className="title is-3">{property.title}</h1>
                     <p className="subtitle is-5"><strong>€{property.price}</strong></p>

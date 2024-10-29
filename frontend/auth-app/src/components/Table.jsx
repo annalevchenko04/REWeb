@@ -288,17 +288,19 @@ const deleteUser = async (userId) => {
                                     filteredUsers.map((user) => (
                                         <tr key={user.id}>
                                             <td>
-                                                <button
-                                                    className="button is-danger is-light is-small" // Use Bulma's 'is-small' class for smaller buttons
-                                                    style={{
-                                                        width: '50px', // Adjust width to make it smaller
-                                                        height: '40px', // Adjust height
-                                                        padding: '5px', // Adjust padding for smaller buttons
-                                                    }}
-                                                    onClick={() => handleDeleteClick(user)}
-                                                >
-                                                    <i className="fas fa-trash-alt"></i> {/* Delete icon */}
-                                                </button>
+                                                {user.role !== 'admin' && (
+                                                    <button
+                                                        className="button is-danger is-light is-small"
+                                                        style={{
+                                                            width: '50px',
+                                                            height: '40px',
+                                                            padding: '5px',
+                                                        }}
+                                                        onClick={() => handleDeleteClick(user)}
+                                                    >
+                                                        <i className="fas fa-trash-alt"></i>
+                                                    </button>
+                                                )}
                                             </td>
                                             <td>{user.id}</td>
                                             <td>{user.name}</td>
@@ -319,7 +321,7 @@ const deleteUser = async (userId) => {
                         <p>Loading users...</p>
                     )}
 
-                    {errorMessage && <ErrorMessage message={errorMessage} />}
+                    {errorMessage && <ErrorMessage message={errorMessage}/>}
 
                     <h2 className="title is-4">All Properties</h2>
                     {/* Sort By Dropdown */}

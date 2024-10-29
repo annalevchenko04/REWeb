@@ -17,6 +17,10 @@ const PropertySearch = () => {
     const [sortBy, setSortBy] = useState('oldest'); // Initialize sortBy state
     const navigate = useNavigate();
 
+
+    const [currentPage, setCurrentPage] = useState(0);
+    const itemsPerPage = 6;
+
     const handleSearch = async (e) => {
     e.preventDefault();
 
@@ -112,6 +116,9 @@ const PropertySearch = () => {
         // Navigate back to the search page (this is optional based on UX design)
         navigate('/properties/search');
     };
+
+    const totalPages = Math.ceil(properties.length / itemsPerPage);
+    const currentProperties = properties.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
 
     return (
         <div className="container">
@@ -233,9 +240,9 @@ const PropertySearch = () => {
                     </div>
 
                     {/* Properties Display */}
-                    {properties.length > 0 ? (
+                    {currentProperties.length > 0 ? (
                         <div className="columns is-multiline">
-                            {properties.map((property) => (
+                            {currentProperties.map((property) => (
                                 <div className="column is-one-third" key={property.id}>
                                     <div className="box favorite-card" style={{
                                     position: 'relative',
@@ -310,6 +317,16 @@ const PropertySearch = () => {
                     ) : (
                         <p>No properties found.</p>
                     )}
+
+                     {/* Pagination Controls */}
+                    <div className="pagination">
+                        <button className="button is-primary" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 0}>
+                            &lt;
+                        </button>
+                        <button className="button is-primary" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage >= totalPages - 1}>
+                            &gt;
+                        </button>
+                    </div>
 
                     <br/>
                     <button className="button is-primary" onClick={handleNewSearch}>

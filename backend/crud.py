@@ -28,7 +28,7 @@ def get_properties_by_user(db: Session, username: str):
     # Fetch the user based on the username
     user = get_user(db, username=username)
     if not user:
-        return []  # Handle user not found scenario
+        raise HTTPException(status_code=404, detail="User not found")
 
     # Query properties owned by the agent
     return db.query(models.Property).filter(models.Property.agent_id == user.id).all()
