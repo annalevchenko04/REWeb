@@ -7,6 +7,8 @@ const PropertySearch = () => {
     const [token] = useContext(UserContext);
     const [errorMessage, setErrorMessage] = useState("");
     const [location, setLocation] = useState('');
+    const [filteredCities, setFilteredCities] = useState([]);
+    const [isFocused, setIsFocused] = useState(false);
     const [minPrice, setMinPrice] = useState('');
     const [maxPrice, setMaxPrice] = useState('');
     const [propertyType, setPropertyType] = useState('');
@@ -16,7 +18,12 @@ const PropertySearch = () => {
     const [showSearchForm, setShowSearchForm] = useState(true);
     const [sortBy, setSortBy] = useState('oldest'); // Initialize sortBy state
     const navigate = useNavigate();
-
+ const cities = [
+  'Vilnius', 'Kaunas', 'Klaipėda', 'Šiauliai', 'Panevėžys', 'Alytus', 'Marijampolė',
+  'Jonava', 'Kėdainiai', 'Telšiai', 'Palanga', 'Visaginas'
+  // Add more Lithuanian cities as needed
+];
+ const isValidCity = (city) => cities.includes(city);
 
     const [currentPage, setCurrentPage] = useState(0);
     const itemsPerPage = 6;
@@ -32,6 +39,12 @@ const PropertySearch = () => {
         setErrorMessage("Property Type is required.");
         return;
     }
+
+    if (!isValidCity(location)) {
+        setErrorMessage("Please select a valid city from the list.");
+        return;
+    }
+
 
     // Build query string dynamically
     const queryParams = new URLSearchParams();
@@ -120,6 +133,43 @@ const PropertySearch = () => {
     const totalPages = Math.ceil(properties.length / itemsPerPage);
     const currentProperties = properties.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
 
+     const handleLocationChange = (e) => {
+    const searchQuery = e.target.value;
+    setLocation(searchQuery);
+
+    if (searchQuery.length > 0) {
+      const filtered = cities.filter(city =>
+        city.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredCities(filtered);
+    } else {
+      setFilteredCities(cities); // Show all cities if the input is empty
+    }
+  };
+const handleCitySelect = (city, e) => {
+  e.stopPropagation(); // Prevent the modal from closing
+  setLocation(city);
+  setFilteredCities([]); // Hide the list once a city is selected
+};
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    // Show all cities when the input field is focused
+    if (location === '') {
+      setFilteredCities(cities);
+    }
+  };
+  const handleBlur = () => {
+  // Only close if focus was lost and no city was selected
+  setTimeout(() => {
+    if (!isFocused) {
+      setFilteredCities([]); // Hide suggestions after a brief delay
+    }
+  }, 100);
+};
+
+
+
     return (
         <div className="container">
             <Link to="/profile" className="button is-primary">
@@ -135,15 +185,27 @@ const PropertySearch = () => {
             {showSearchForm ? (
                 <form onSubmit={handleSearch} className="box">
                     <div className="field">
-                        <label className="label">Location <span style={{ color: 'red' }}>*</span></label>
+                        <label className="label">Location <span style={{color: 'red'}}>*</span></label>
                         <div className="control">
                             <input
-                                className="input"
                                 type="text"
+                                placeholder="Enter property location"
                                 value={location}
-                                onChange={(e) => setLocation(e.target.value)}
-                                placeholder="Location"
+                                onChange={handleLocationChange}
+                                onFocus={handleFocus} // Handle focus to show all cities
+                                onBlur={handleBlur} // Handle blur if you want to hide suggestions
+                                className="input"
+                                required
                             />
+                            {isFocused && filteredCities.length > 0 && (
+                                <ul className="suggestions">
+                                    {filteredCities.map((city, index) => (
+                                        <li key={index} onClick={(e) => handleCitySelect(city, e)}>
+                                            {city}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     </div>
 
@@ -174,7 +236,7 @@ const PropertySearch = () => {
                     </div>
 
                     <div className="field">
-                        <label className="label">Property Type <span style={{ color: 'red' }}>*</span></label>
+                        <label className="label">Property Type <span style={{color: 'red'}}>*</span></label>
                         <div className="control">
                             <div className="select">
                                 <select

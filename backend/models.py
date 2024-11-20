@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum, UniqueConstraint, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
+from datetime import datetime
 from database import Base
 
 
@@ -34,6 +35,7 @@ class User(Base):
     # Relationship with favorite properties (one-to-many)
     favorites = relationship("Favorite", back_populates="user", cascade="all, delete-orphan")
 
+    visit_requests = relationship("VisitRequest", back_populates="user", cascade="all, delete-orphan")
 
 # Property model
 class Property(Base):
@@ -60,6 +62,7 @@ class Property(Base):
     # Relationship with favorites (one-to-many)
     favorites = relationship("Favorite", back_populates="property", cascade="all, delete-orphan")
 
+    visit_requests = relationship("VisitRequest", back_populates="property", cascade="all, delete-orphan")
 
 # Image model
 class Image(Base):
@@ -90,3 +93,26 @@ class Favorite(Base):
 
     # Relationship with the property (many-to-one)
     property = relationship("Property", back_populates="favorites")
+
+
+class VisitRequestStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+
+class VisitRequest(Base):
+    __tablename__ = "visit_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    email = Column(String, nullable=False)
+    message = Column(Text, nullable=True)
+    visit_date = Column(DateTime, nullable=False)
+    visit_time = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(Enum(VisitRequestStatus), default=VisitRequestStatus.pending)  # New status field
+
+    # Relationships
+    property = relationship("Property", back_populates="visit_requests")
+    user = relationship("User", back_populates="visit_requests")

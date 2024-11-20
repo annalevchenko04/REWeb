@@ -3,10 +3,12 @@ import models
 import schemas
 from passlib.context import CryptContext
 from fastapi import HTTPException
+from models import User, Property, Image, Favorite, VisitRequest, VisitRequestStatus
+from datetime import datetime
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
+# --- User CRUD operations ---
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = pwd_context.hash(user.password)
     db_user = models.User(username=user.username,
@@ -23,6 +25,9 @@ def get_user(db: Session, username: str):
     db_user = db.query(models.User).filter(models.User.username == username).first()
     return db_user
 
+def get_user_by_id(db: Session, user_id: int):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    return db_user
 
 def get_properties_by_user(db: Session, username: str):
     # Fetch the user based on the username
@@ -68,6 +73,8 @@ def delete_user(db: Session, user_id: int):
     db.commit()
     return True
 
+
+# --- Property CRUD operations ---
 def create_property(db: Session, property: schemas.PropertyCreate, agent_id: int):
     db_property = models.Property(
         title=property.title,
@@ -194,7 +201,7 @@ def delete_image(db: Session, image_id: int):
     db.commit()
     return True
 
-
+# --- Favorite CRUD operations ---
 def add_favorite(db: Session, user_id: int, property_id: int):
     favorite = models.Favorite(user_id=user_id, property_id=property_id)
     db.add(favorite)
@@ -212,3 +219,44 @@ def remove_favorite(db: Session, user_id: int, property_id: int):
 
 def get_favorites(db: Session, user_id: int):
     return db.query(models.Property).join(models.Favorite).filter(models.Favorite.user_id == user_id).all()
+
+
+def create_visit_request(db: Session, visit_request: schemas.VisitRequestCreate, user_id: int):
+    db_visit_request = models.VisitRequest(
+        property_id=visit_request.property_id,
+        user_id=user_id,
+        email=visit_request.email,
+        message=visit_request.message,
+        visit_date=visit_request.visit_date,  # Assuming visit_date is a datetime
+        visit_time=visit_request.visit_time,  # Assuming visit_time is a datetime
+        created_at=datetime.utcnow(),
+        status=models.VisitRequestStatus.pending,  # Default status
+    )
+    db.add(db_visit_request)
+    db.commit()
+    db.refresh(db_visit_request)
+    return db_visit_request
+
+
+def get_visit_requests_for_property(db: Session, property_id: int):
+    return db.query(VisitRequest).filter(VisitRequest.property_id == property_id).all()
+
+
+
+def get_visit_requests_for_agent(db: Session, agent_id: int):
+    return (
+        db.query(VisitRequest)
+        .join(Property, Property.id == VisitRequest.property_id)
+        .filter(Property.agent_id == agent_id)
+        .all()
+    )
+
+def get_visit_requests_for_user(db: Session, user_id: int):
+    return db.query(models.VisitRequest).filter(models.VisitRequest.user_id == user_id).all()
+def update_visit_request_status(db: Session, request_id: int, status: VisitRequestStatus):
+    visit_request = db.query(VisitRequest).filter(VisitRequest.id == request_id).first()
+    if visit_request:
+        visit_request.status = status
+        db.commit()
+        db.refresh(visit_request)
+    return visit_request

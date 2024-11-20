@@ -12,9 +12,16 @@ const PropertyDetails = () => {
     const [user, setUser] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false); // Track modal visibility
     const [isLoading, setIsLoading] = useState(true);
+    const [isRequestVisitModalOpen, setIsRequestVisitModalOpen] = useState(false); // Track visit request modal visibility
     const [selectedImageIndex, setSelectedImageIndex] = useState(null); // Track selected image index
     const { property_id } = useParams();
-
+    const [successMessage, setSuccessMessage] = useState("");
+    const [visitRequest, setVisitRequest] = useState({
+        email: '',
+        message: '',
+        visitDate: '',
+        visitTime: ''
+    }); // Form data for visit request
     useEffect(() => {
         const fetchData = async () => {
             if (token && property_id) {
@@ -125,10 +132,82 @@ const PropertyDetails = () => {
             console.error(error);
         }
     };
+    const handleRequestVisitButtonClick = () => {
+        setVisitRequest({
+            email: property.agent?.username || '',
+            message: '',
+            visitDate: '',
+            visitTime: ''
+        });
+        setIsRequestVisitModalOpen(true); // Open visit request modal
+    };
 
+    const handleVisitRequestChange = (e) => {
+        const { name, value } = e.target;
+        setVisitRequest((prevState) => ({ ...prevState, [name]: value }));
+    };
 
-const formatDate = (dateString) => {
-    const options = {
+const handleVisitRequestSubmit = async (e) => {
+    e.preventDefault();
+
+    // Ensure visit date and time are selected before submitting
+    if (!visitRequest.visitDate || !visitRequest.visitTime) {
+        setErrorMessage("Both visit date and visit time are required.");
+        return;
+    }
+
+    // Create the payload to match the expected backend format
+    const requestPayload = {
+        property_id: property_id, // Pass property_id
+        email: visitRequest.email, // Agent's email (already populated)
+        message: visitRequest.message, // User's message
+        visit_date: new Date(visitRequest.visitDate + 'T' + visitRequest.visitTime).toISOString(), // Correct ISO 8601 format for visit_date
+        visit_time: new Date(visitRequest.visitDate + 'T' + visitRequest.visitTime).toISOString(), // Correct ISO 8601 format for visit_time
+    };
+
+    const requestOptions = {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify(requestPayload),
+    };
+
+    try {
+        const response = await fetch(`http://localhost:8000/properties/${property_id}/visit-request`, requestOptions);
+
+        if (!response.ok) {
+            const error = await response.json(); // Get the detailed error message from the server
+            setErrorMessage(error.message || "Failed to submit visit request.");
+            return;
+        }
+
+        setIsRequestVisitModalOpen(false);
+        // If request is successful, show success message
+        setSuccessMessage("Visit request submitted successfully!");
+
+        // Optionally, clear the form after submission
+        setVisitRequest({
+            email: '',
+            message: '',
+            visitDate: '',
+            visitTime: ''
+        });
+
+        // Close the modal and reset success message after 2 seconds
+        setTimeout(() => {
+            setSuccessMessage("");
+             // Close the modal
+        }, 2000); // Delay of 2 seconds
+
+    } catch (error) {
+        setErrorMessage(error.message || "An error occurred while submitting the request.");
+    }
+};
+
+    const formatDate = (dateString) => {
+        const options = {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -180,6 +259,7 @@ const formatDate = (dateString) => {
 
     return (
         <div className="container">
+
             <div style={{ textAlign: "left" }}>
                 <br />
                 <div style={buttonContainerStyle}>
@@ -197,20 +277,20 @@ const formatDate = (dateString) => {
             ) :  property ? (
                 <div className="box">
                     <div style={{textAlign: "right"}}>
-                        {user && user.role !== 'admin' && (
-                        <button
-                            onClick={toggleFavorite}
-                            style={{
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer"
-                            }}
-                        >
+                        {user && user.role !== 'admin' && user.role !== 'agent' && (
+                            <button
+                                onClick={toggleFavorite}
+                                style={{
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer"
+                                }}
+                            >
                             <span className="icon">
                                 <i className={isFavorited ? "fas fa-heart" : "far fa-heart"}
                                    style={{color: isFavorited ? "red" : "gray"}}></i>
                             </span>
-                        </button>
+                            </button>
                         )}
                     </div>
                     <h1 className="title is-3">{property.title}</h1>
@@ -226,7 +306,6 @@ const formatDate = (dateString) => {
                     <p><strong>Bedrooms:</strong> {property.bedrooms}</p>
                     <p><strong>Bathrooms:</strong> {property.bathrooms}</p>
                     <p><strong>Size:</strong> {property.size} m²</p>
-                    <p><strong>Status:</strong> {property.status}</p>
                     <br/>
                     <h2 className="title is-4">Images</h2>
                     <div className="columns is-multiline">
@@ -264,12 +343,18 @@ const formatDate = (dateString) => {
                     <h3 className="title is-4">Contact Agent</h3>
                     <p><strong>Name:</strong> {property.agent?.name} {property.agent?.surname}</p>
                     <p><strong>Email:</strong> {property.agent?.username}</p>
+                    <br/>
+                    {user && user.role !== 'admin' && user.role !== 'agent' && (
+                        <button className="button is-primary" onClick={handleRequestVisitButtonClick}>
+                            Request Visit
+                        </button>
+                    )}
                     <p className="published-date" style={{textAlign: "right", marginTop: "10px"}}>
                         <strong>Published:</strong> {formatDate(property.created_at)}
                     </p>
                 </div>
             ) : (
-                <ErrorMessage message={errorMessage} />
+                <ErrorMessage message={errorMessage}/>
             )}
             {/* Modal Component */}
             {isModalOpen && (
@@ -340,6 +425,103 @@ const formatDate = (dateString) => {
     </div>
 )}
 
+             {/* Success Message */}
+            {successMessage && !isRequestVisitModalOpen && (
+              <div
+                className="notification is-success"
+                style={{
+                  position: 'fixed',
+                  top: '50%',  // Vertically center the message
+                  left: '50%',  // Horizontally center the message
+                  transform: 'translate(-50%, -50%)',  // Apply both horizontal and vertical centering
+                  zIndex: 1001,
+                  padding: '15px', // Optional: add some padding for better spacing
+                  maxWidth: '80%', // Optional: control the width of the message box
+                  width: 'auto', // Optional: let the width adjust based on content
+                }}
+              >
+                {successMessage}
+              </div>
+            )}
+
+          {/* Request Visit Modal */}
+ {isRequestVisitModalOpen && (
+    <div className={`modal ${isRequestVisitModalOpen && "is-active"}`}>
+        <div className="modal-background" onClick={() => setIsRequestVisitModalOpen(false)}></div>
+        <div className="modal-card">
+            <header className="modal-card-head has-background-primary-light">
+                <p className="modal-card-title">Request Visit</p>
+            </header>
+            <section className="modal-card-body">
+                {/* Form to input the request visit details */}
+                <form onSubmit={handleVisitRequestSubmit}>
+                    <div className="field">
+                        <label className="label">Email</label>
+                        <div className="control">
+                            <input
+                                className="input"
+                                type="email"
+                                name="email"
+                                value={visitRequest.email}
+                                onChange={handleVisitRequestChange}
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div className="field">
+                        <label className="label">Visit Date</label>
+                        <div className="control">
+                            <input
+                                className="input"
+                                type="date"
+                                name="visitDate"
+                                value={visitRequest.visitDate}
+                                onChange={handleVisitRequestChange}
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div className="field">
+                        <label className="label">Visit Time</label>
+                        <div className="control">
+                            <input
+                                className="input"
+                                type="time"
+                                name="visitTime"
+                                value={visitRequest.visitTime}
+                                onChange={handleVisitRequestChange}
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div className="field">
+                                    <label className="label">Message</label>
+                                    <div className="control">
+                                    <textarea
+                                        className="textarea"
+                                        name="message"
+                                        value={visitRequest.message}
+                                        onChange={handleVisitRequestChange}
+                                        placeholder="Optional message"
+                                        maxLength={70} // Limit input to 50 characters
+                                    />
+                    </div>
+                    </div>
+                </form>
+            </section>
+            <footer className="modal-card-foot has-background-primary-light">
+                <button className="button is-primary" type="submit" disabled={!visitRequest.visitDate || !visitRequest.visitTime} onClick={handleVisitRequestSubmit}>
+                    Submit
+                </button>
+                    <button className="button ml-2" onClick={() => setIsRequestVisitModalOpen(false)}>
+                        Cancel
+                    </button>
+            </footer>
+        </div>
+        <button className="modal-close is-large" aria-label="close"
+                onClick={() => setIsRequestVisitModalOpen(false)}></button>
+    </div>
+     )}
         </div>
     );
 };

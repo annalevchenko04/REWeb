@@ -5,6 +5,8 @@ const LeadModal = ({ active, handleModal, token, id, setErrorMessage, userInfo }
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [location, setLocation] = useState("");
+  const [filteredCities, setFilteredCities] = useState([]);
+  const [isFocused, setIsFocused] = useState(false);
   const [propertyType, setPropertyType] = useState(""); // 'house' or 'apartment'
   const [bedrooms, setBedrooms] = useState("");
   const [bathrooms, setBathrooms] = useState("");
@@ -12,6 +14,12 @@ const LeadModal = ({ active, handleModal, token, id, setErrorMessage, userInfo }
   const [images, setImages] = useState([]); // State for image
   const [validationError, setValidationError] = useState("");
   const [existingImages, setExistingImages] = useState([]); // Existing images for update scenario
+  const cities = [
+  'Vilnius', 'Kaunas', 'Klaipėda', 'Šiauliai', 'Panevėžys', 'Alytus', 'Marijampolė',
+  'Jonava', 'Kėdainiai', 'Telšiai', 'Palanga', 'Visaginas'
+  // Add more Lithuanian cities as needed
+];
+  const isValidCity = (city) => cities.includes(city);
   // Fetch property data if the modal is for updating (i.e., when id is present)
   useEffect(() => {
     const getProperty = async () => {
@@ -88,8 +96,6 @@ const handleRemoveExistingImage = async (imageId) => {
   }
 };
 
-
-
   // Validation Function
   const validateForm = () => {
     if (price <= 0) return "Price must be greater than zero.";
@@ -99,6 +105,7 @@ const handleRemoveExistingImage = async (imageId) => {
     if (!propertyType) return "Property type is required.";
     if (!title) return "Title is required.";
     if (!location) return "Location is required.";
+    if (!isValidCity(location)) return "Please select a valid city from the list.";
     return "";
   };
 
@@ -281,6 +288,41 @@ const handleInvalid = (e) => {
     setValidationError(errorMessage);
   };
 
+ const handleLocationChange = (e) => {
+    const searchQuery = e.target.value;
+    setLocation(searchQuery);
+
+    if (searchQuery.length > 0) {
+      const filtered = cities.filter(city =>
+        city.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredCities(filtered);
+    } else {
+      setFilteredCities(cities); // Show all cities if the input is empty
+    }
+  };
+const handleCitySelect = (city, e) => {
+  e.stopPropagation(); // Prevent the modal from closing
+  setLocation(city);
+  setFilteredCities([]); // Hide the list once a city is selected
+};
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    // Show all cities when the input field is focused
+    if (location === '') {
+      setFilteredCities(cities);
+    }
+  };
+  const handleBlur = () => {
+  // Only close if focus was lost and no city was selected
+  setTimeout(() => {
+    if (!isFocused) {
+      setFilteredCities([]); // Hide suggestions after a brief delay
+    }
+  }, 100);
+};
+
 
   return (
     <div className={`modal ${active && "is-active"}`}>
@@ -337,11 +379,21 @@ const handleInvalid = (e) => {
                     type="text"
                     placeholder="Enter property location"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={handleLocationChange}
+                    onFocus={handleFocus} // Handle focus to show all cities
+                    onBlur={handleBlur} // Handle blur if you want to hide suggestions
                     className="input"
                     required
-                    onInvalid={handleInvalid}
                 />
+                {isFocused && filteredCities.length > 0 && (
+                    <ul className="suggestions">
+                      {filteredCities.map((city, index) => (
+                        <li key={index} onClick={(e) => handleCitySelect(city, e)}>
+                          {city}
+                        </li>
+                      ))}
+                    </ul>
+                )}
               </div>
             </div>
             <div className="field">
@@ -427,58 +479,63 @@ const handleInvalid = (e) => {
                 />
               </div>
             </div>
-             {/* Newly Selected Images */}
-           {images.length > 0 && (
-          <div className="field">
-            <p>Selected Images:</p>
-            <ul>
-              {images.map((image, index) => (
-                <li key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                  <img
-                    src={URL.createObjectURL(image)}  // Use URL.createObjectURL for local file reference
-                    alt={`Selected ${index}`}
-                    width="100"
-                    style={{ marginRight: '10px' }}  // Add space between image and button
-                  />
-          <span>{image.name}</span>
-          <button
-            className="button is-danger is-light is-small"
-             style={{ width: '30px', height: '30px', padding: '5px', marginLeft: '10px' }}
-            onClick={() => handleRemoveNewImage(index)}
-          >
-            <i className="fas fa-trash-alt"></i>
-          </button>
-        </li>
-      ))}
-    </ul>
-  </div>
-)}
-{/* Existing Images */}
-{existingImages.length > 0 && (
-  <div className="field">
-    <p>Existing Images:</p>
-    <ul>
-      {existingImages.map((image) => (
-        <li key={image.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-          <img
-            src={`http://localhost:8000/${image.url}`}
-            alt={`image_id ${image.id}`}
-            width="100"
-            style={{ marginRight: '10px' }} // Space between image and button
-          />
-          <span style={{ flex: 1 }}>{`Image ID: ${image.id}`}</span> {/* Show image ID for clarity */}
-          <button
-            className="button is-danger is-light is-small"
-            style={{ width: '30px', height: '30px', padding: '5px', marginLeft: '10px' }} // Space between span and button
-            onClick={() => handleRemoveExistingImage(image.id)}
-          >
-            <i className="fas fa-trash-alt"></i>
-          </button>
-        </li>
-      ))}
-    </ul>
-  </div>
-)}
+            {/* Newly Selected Images */}
+            {images.length > 0 && (
+                <div className="field">
+                  <p>Selected Images:</p>
+                  <ul>
+                    {images.map((image, index) => (
+                        <li key={index} style={{display: 'flex', alignItems: 'center', marginBottom: '10px'}}>
+                          <img
+                              src={URL.createObjectURL(image)}  // Use URL.createObjectURL for local file reference
+                              alt={`Selected ${index}`}
+                              width="100"
+                              style={{marginRight: '10px'}}  // Add space between image and button
+                          />
+                          <span>{image.name}</span>
+                          <button
+                              className="button is-danger is-light is-small"
+                              style={{width: '30px', height: '30px', padding: '5px', marginLeft: '10px'}}
+                              onClick={() => handleRemoveNewImage(index)}
+                          >
+                            <i className="fas fa-trash-alt"></i>
+                          </button>
+                        </li>
+                    ))}
+                  </ul>
+                </div>
+            )}
+            {/* Existing Images */}
+            {existingImages.length > 0 && (
+                <div className="field">
+                  <p>Existing Images:</p>
+                  <ul>
+                    {existingImages.map((image) => (
+                        <li key={image.id} style={{display: 'flex', alignItems: 'center', marginBottom: '10px'}}>
+                          <img
+                              src={`http://localhost:8000/${image.url}`}
+                              alt={`image_id ${image.id}`}
+                              width="100"
+                              style={{marginRight: '10px'}} // Space between image and button
+                          />
+                          <span style={{flex: 1}}>{`Image ID: ${image.id}`}</span> {/* Show image ID for clarity */}
+                          <button
+                              className="button is-danger is-light is-small"
+                              style={{
+                                width: '30px',
+                                height: '30px',
+                                padding: '5px',
+                                marginLeft: '10px'
+                              }} // Space between span and button
+                              onClick={() => handleRemoveExistingImage(image.id)}
+                          >
+                            <i className="fas fa-trash-alt"></i>
+                          </button>
+                        </li>
+                    ))}
+                  </ul>
+                </div>
+            )}
             {validationError && (
                 <p className="help is-danger">{validationError}</p>
             )}

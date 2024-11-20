@@ -1,7 +1,7 @@
 from pydantic import BaseModel, validator
 from typing import List, Optional
 from datetime import datetime
-
+from enum import Enum
 
 # User creation model (used for creating a user)
 
@@ -101,3 +101,29 @@ class Favorite(BaseModel):
 
 
 
+class VisitRequestStatus(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+
+
+class VisitRequestBase(BaseModel):
+    property_id: int
+    email: str
+    message: str | None = None
+    visit_date: datetime
+    visit_time: datetime
+
+
+class VisitRequestCreate(VisitRequestBase):
+    pass
+
+
+class VisitRequestResponse(VisitRequestBase):
+    id: int
+    status: VisitRequestStatus
+    created_at: datetime
+    user_id: int  
+
+    class Config:
+        orm_mode = True  # Allows conversion from SQLAlchemy models to Pydantic models

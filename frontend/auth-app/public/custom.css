@@ -60,3 +60,83 @@
     transform: scale(1.05); /* Slightly scale up on hover */
     box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2); /* Add a shadow effect */
 }
+
+.suggestions {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ccc;
+  z-index: 10;
+  width: 100%;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.control {
+  position: relative;
+}
+
+.suggestions li {
+  padding: 8px;
+  cursor: pointer;
+}
+
+.suggestions li:hover {
+  background-color: #f0f0f0;
+}
+
+/* styles.css or inline in JSX */
+.scrollable-container {
+    max-height: 600px; /* Adjust this value as needed */
+    overflow-y: auto;  /* Enables vertical scrolling */
+    padding-right: 10px; /* Optional: to prevent content from hiding under scrollbar */
+}
+
+/* Styling for the "Message" section */
+.box p strong {
+  display: inline-block; /* Ensures consistent alignment */
+  margin-right: 5px; /* Spacing between label and message */
+  color: #444; /* Slightly muted color for label text */
+}
+
+.box p {
+  margin: 0.5em 0; /* Vertical spacing between paragraphs */
+  word-wrap: break-word; /* Ensures long words break properly */
+  white-space: pre-wrap; /* Preserves newlines and spaces from the message */
+}
+
+/* Scrollable container for long lists */
+.scrollable-container {
+  max-height: 500px; /* Limit height for long lists */
+  overflow-y: auto; /* Add a vertical scrollbar if needed */
+  padding-right: 10px; /* Space for scrollbar visibility */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .box {
+    padding: 10px;
+  }
+  .scrollable-container {
+    max-height: 300px;
+  }
+}
+.responsive-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.responsive-buttons .button {
+  flex: 1 1 calc(50% - 10px); /* Default 50% width minus gap */
+  min-width: 150px; /* Prevent buttons from shrinking too much */
+  margin-bottom: 10px;
+}
+
+@media (max-width: 600px) {
+  .responsive-buttons .button {
+    flex: 1 1 100%; /* Full-width buttons on narrow screens */
+  }
+}

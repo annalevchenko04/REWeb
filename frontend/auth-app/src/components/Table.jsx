@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import ErrorMessage from "./ErrorMessage";
 import LeadModal from "./LeadModal";
 import { UserContext } from "../context/UserContext";
-import { Link } from "react-router-dom"; // Import Link from react-router-dom
+import {Link, useParams} from "react-router-dom"; // Import Link from react-router-dom
 
 const Table = () => {
     const [token] = useContext(UserContext);
@@ -17,6 +17,7 @@ const Table = () => {
     const [usersLoaded, setUsersLoaded] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [roleFilter, setRoleFilter] = useState("");
+    const { property_id } = useParams();
     const [deleteModal, setDeleteModal] = useState(false); // Track delete modal visibility
     const [userToDelete, setUserToDelete] = useState(null);
 
@@ -504,25 +505,59 @@ const deleteUser = async (userId) => {
                     ) : (
                         <p>Loading...</p>
                     )}
-                </>
-            )}
-            {(userInfo?.role === 'agent' || userInfo?.role === 'user') && (
-                    <div style={{
-                        textAlign: "left",
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginTop: '20px'
-                    }}>
-                        <Link to="/my-favorites" className="button is-primary"
-                              style={{ width: '48%', marginBottom: '10px' }}>
-                            My Favorites
-                        </Link>
+                <div style={{
+                    textAlign: "left",
+                    display: 'flex',
+                    justifyContent: 'space-between', // Ensures space between buttons
+                    marginTop: '20px',
+                    gap: '10px', // Adds space between buttons
+                }}>
+                     <Link
+                        to={`/users/${userInfo.id}/agent-visit-requests`}
+                        className="button is-primary"
+                        style={{
+                            width: '48%',
+                            marginBottom: '10px',
+                        }}
+                    >
+                        My Visit Requests
+                    </Link>
 
-                        <Link to="/properties/search" className="button is-primary"
-                              style={{ width: '48%', marginBottom: '10px' }}>
-                            Property Search
-                        </Link>
-                    </div>
+                    <Link
+                        to="/properties/search"
+                        className="button is-primary"
+                        style={{
+                            width: '48%',
+                            marginBottom: '10px',
+                        }}
+                    >
+                        Property Search
+                    </Link>
+                </div>
+                </>
+
+            )}
+            {(userInfo?.role === 'user') && (
+                  <div className="responsive-buttons">
+                    <Link
+                      to={`/users/${userInfo?.id}/my-favorites`}
+                      className="button is-primary"
+                    >
+                      My Favorites
+                    </Link>
+                    <Link
+                      to="/properties/search"
+                      className="button is-primary"
+                    >
+                      Property Search
+                    </Link>
+                    <Link
+                      to={`/users/${userInfo.id}/visit-requests`}
+                      className="button is-primary"
+                    >
+                      My Visit Requests
+                    </Link>
+                  </div>
             )}
         </>
 

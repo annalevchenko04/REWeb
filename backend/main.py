@@ -1,7 +1,7 @@
 import os
 import base64
 import shutil
-from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form, Request
 from fastapi import Body
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -11,12 +11,10 @@ from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, List
 from fastapi.staticfiles import StaticFiles
-
-
-# Importing necessary modules
 import crud
 import models
 import schemas
+from models import VisitRequest
 from database import engine, SessionLocal
 
 # Initializing FastAPI application
@@ -56,7 +54,6 @@ def get_db():
     finally:
         db.close()
 
-
 # Passwords are hashed using bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -65,7 +62,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # JWT configuration
 SECRET_KEY = os.environ.get("SECRET_KEY")
 ALGORITHM = os.environ.get("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_MINUTES = 10
 
 # Dependency annotation for database session
 db_dependency = Annotated[Session, Depends(get_db)]
@@ -95,6 +93,36 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({'exp': expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+@app.middleware("http")
+async def refresh_access_on_activity(request: Request, call_next):
+    token = request.headers.get("Authorization")
+    if token:
+        token = token.split(" ")[1]  # remove 'Bearer' prefix
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+            if username:
+                request.state.user = username
+                new_access_token = create_access_token(
+                    data={"sub": username},
+                    expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+                )
+                response = await call_next(request)
+                response.headers["x-new-access-token"] = new_access_token
+                return response
+        except JWTError:
+            pass
+
+    return await call_next(request)
+
+
 
 # Login Endpoint
 @app.post("/token")
@@ -106,10 +134,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
-    return {"access_token": access_token, "token_type": "bearer"}
-
+    access_token = create_access_token(data={"sub": user.username},
+                                       expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    refresh_token = create_refresh_token(data={"sub": user.username})
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
 # Token Verification
 def verify_token(token: str = Depends(oauth2_scheme)):
@@ -125,10 +153,23 @@ def verify_token(token: str = Depends(oauth2_scheme)):
 
 # User Token Verification Endpoint
 @app.get("/verify-token/{token}")
-async def verify_user_token(token: str):
-    verify_token(token=token)
-    return {"message": "Token is valid"}
+async def verify_user_token(token: str, db: Session = Depends(get_db)):
+    payload = verify_token(token=token)
+    username = payload.get("sub")
+    user = crud.get_user(db, username=username)
 
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    #new_token = create_access_token({"sub": username}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+
+    return {
+        "message": "Token is valid",
+        "role": user.role,
+        "user_id": user.id,
+        "name": user.name,
+        "access_token": token
+    }
 
 # --- User Endpoints ---
 
@@ -140,6 +181,12 @@ async def read_user(username: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
 
+@app.get("/users/id/{user_id}", response_model=schemas.User)
+async def read_user_by_id(user_id: int, db: Session = Depends(get_db)):
+    db_user = crud.get_user_by_id(db=db, user_id=user_id)  # Add a function to get user by ID
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return db_user
 
 # Update a user
 @app.put("/users/{user_id}", response_model=schemas.User)
@@ -237,7 +284,7 @@ async def list_user_properties(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Optionally check if the user_id matches the fetched user's ID
+
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="User ID in the URL does not match the authenticated user")
 
@@ -326,42 +373,6 @@ async def search_properties(
 # --- Image Endpoints ---
 
 # Upload an image for a property (only for agents who own the property)
-# @app.post("/users/{user_id}/property/{property_id}/image", response_model=schemas.Image)
-# async def upload_image(
-#     user_id: int,
-#     property_id: int,
-#     image_data: str = Body(..., embed=True),  # Change to receive base64 data
-#     db: Session = Depends(get_db),
-#     token: str = Depends(oauth2_scheme)
-# ):
-#     payload = verify_token(token)
-#     db_user = crud.get_user(db=db, username=payload.get("sub"))
-#
-#     db_property = crud.get_property(db=db, property_id=property_id)
-#     if db_property is None:
-#         raise HTTPException(status_code=404, detail="Property not found")
-#
-#     if db_user is None or db_property.agent_id != db_user.id:
-#         raise HTTPException(status_code=403, detail="Not authorized to upload images for this property")
-#
-#     # Extract filename and file extension from base64 string
-#     # Assuming image_data format: "data:image/png;base64,..."
-#     header, encoded = image_data.split(",", 1)
-#     file_extension = header.split(";")[0].split("/")[1]  # Get file type (e.g., 'png', 'jpeg')
-#
-#     # Generate a unique filename to save the image
-#     new_filename = f"{property_id}_{datetime.now().timestamp()}.{file_extension}"
-#     image_path = os.path.join("images", new_filename)
-#
-#     # Decode the base64 string and save the image
-#     with open(image_path, "wb") as image_file:
-#         image_file.write(base64.b64decode(encoded))
-#
-#     # Create the image entry in the database
-#     image_data = schemas.ImageCreate(filename=new_filename, url=image_path)
-#     return crud.create_image(db=db, image=image_data, property_id=property_id)
-
-
 @app.post("/users/{user_id}/property/{property_id}/image", response_model=schemas.Image)
 async def upload_image(
     user_id: int,
@@ -457,6 +468,7 @@ async def delete_image(user_id: int, property_id: int, image_id: int, db: db_dep
     crud.delete_image(db=db, image_id=image_id)
     return {"message": "Image deleted successfully"}
 
+# --- Favorite Endpoints ---
 
 @app.post("/users/{user_id}/property/{property_id}/favorites", response_model=schemas.Favorite)
 async def add_favorite(
@@ -515,3 +527,108 @@ async def get_favorites(
     # Retrieve all favorite properties for the user
     return crud.get_favorites(db, user_id)
 
+
+# Endpoint to request a visit for a property
+@app.post("/properties/{property_id}/visit-request", response_model=schemas.VisitRequestResponse)
+async def create_visit_request(
+    property_id: int,
+    visit_request: schemas.VisitRequestCreate,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    if db_user is None:
+        raise HTTPException(status_code=403, detail="Unauthorized: User not found")
+
+    return crud.create_visit_request(db=db, visit_request=visit_request, user_id=db_user.id)
+
+
+# Endpoint for an agent to list visit requests for their properties
+@app.get("/users/{user_id}/properties/{property_id}/visit-requests", response_model=List[schemas.VisitRequestResponse])
+async def list_visit_requests(
+    user_id: int,
+    property_id: int,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    # Verify and decode the token to get the user payload
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    # Check if the user is valid and authorized to access this endpoint
+    if db_user is None or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Invalid user or access forbidden")
+
+    # Fetch the property and confirm the agent is indeed the owner
+    db_property = crud.get_property(db, property_id=property_id)
+    if not db_property or db_property.agent_id != db_user.id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Property access forbidden")
+
+    # Fetch and return all visit requests for this property
+    return crud.get_visit_requests_for_property(db=db, property_id=property_id)
+
+
+# CRUD function to retrieve visit requests for a specific property
+def get_visit_requests_for_property(db: Session, property_id: int):
+    # Fetch and return all visit requests associated with the given property
+    return db.query(VisitRequest).filter(VisitRequest.property_id == property_id).all()
+
+
+@app.get("/users/{user_id}/visit-requests", response_model=List[schemas.VisitRequestResponse])
+async def list_user_visit_requests(
+    user_id: int,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    # Verify the token and fetch user info
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    # Check if the authenticated user matches the user_id in the URL
+    if db_user is None or db_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    # Fetch the user's visit requests (across all properties)
+    return crud.get_visit_requests_for_user(db=db, user_id=user_id)
+
+@app.get("/users/{user_id}/agent-visit-requests", response_model=List[schemas.VisitRequestResponse])
+async def list_agent_visit_requests(
+    user_id: int,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    # Verify the user token
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    # Check if the authenticated user matches the user_id and has an agent role
+    if db_user is None or db_user.id != user_id or db_user.role != "agent":
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    # Fetch all visit requests for properties owned by the agent
+    visit_requests = crud.get_visit_requests_for_agent(db=db, agent_id=user_id)
+    return visit_requests
+
+
+# Endpoint for an agent to update the status of a visit request
+@app.put("/visit-request/{request_id}/status", response_model=schemas.VisitRequestResponse)
+async def update_visit_request_status(
+    request_id: int,
+    status: schemas.VisitRequestStatus,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    payload = verify_token(token)
+    db_user = crud.get_user(db=db, username=payload.get("sub"))
+
+    db_request = db.query(models.VisitRequest).filter(models.VisitRequest.id == request_id).first()
+    if not db_request:
+        raise HTTPException(status_code=404, detail="Visit request not found")
+
+    db_property = crud.get_property(db, property_id=db_request.property_id)
+    if db_user is None or (db_user.role != "admin" and db_property.agent_id != db_user.id):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    return crud.update_visit_request_status(db, request_id, status)

@@ -10,6 +10,8 @@ import PropertySearch from './components/PropertySearch.jsx'; // Import your new
 import PropertyDetails from './components/PropertyDetails.jsx'; // Import your property details component
 import { useContext } from 'react';
 import { UserContext } from './context/UserContext';
+import AgentVisitRequests from './components/AgentVisitRequests'; // Import your AgentVisitRequests component
+import UserVisitRequests from './components/UserVisitRequests'; // Import your UserVisitRequests component
 import logo from './38757.png';
 
 const App = () => {
@@ -42,7 +44,10 @@ const App = () => {
                 <Route path="/profile" element={<Table />} />
                 <Route path="/properties/search" element={<PropertySearch />} />
                 <Route path="/property/:property_id" element={<PropertyDetails />} />
-                <Route path="/my-favorites" element={<MyFavorites />} />
+                <Route path="/users/:userId/my-favorites" element={<MyFavorites />} />
+                <Route path="/users/:user_id/agent-visit-requests" element={<AgentVisitRequests />} />
+                <Route path="/users/:user_id/visit-requests" element={<UserVisitRequests />} />
+
               </>
             )}
           </Routes>
